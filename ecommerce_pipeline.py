@@ -208,7 +208,6 @@ orders_clean.to_csv("cleaned_orders.csv", index=False)
 # Save to cleaned_customers.csv (no index).
 
 # customers_cleaner = DataCleaner(customers_df, "customers")
-# ...
 
 customers_cleaner=DataCleaner(customers_df, "customers")
 customers_cleaner.report()
