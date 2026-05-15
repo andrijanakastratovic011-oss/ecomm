@@ -122,17 +122,15 @@ class DataCleaner:
           any str  -> fill with that literal string / value
         Return self.
         """
-        x=next(iter(strategy))
-        y=self.df[x].median()
-        if x=='unit_price':
-          self.df['unit price']=self.df['unit_price'].fillna(y, inplace=True) 
-          self.df['status']=self.df['status'].fillna('Unknown', inplace=True) 
-          self.df['country']=self.df['country'].fillna('Unknown', inplace=True) 
-
-        if x=='lifetime_value':
-          self.df['last_name']=self.df['last_name'].fillna('Unknown', inplace=True)
-          self.df['email']=self.df['email'].fillna('Unknown', inplace=True) 
-          self.df['lifetime_value']=self.df['lifetime_value'].fillna(y, inplace=True)  
+        for key, value in strategy.items():
+            if value=='mean':
+                self.df[key]=self.df[key].fillna(self.df[key].mean())
+            elif value=='median':
+                self.df[key]=self.df[key].fillna(self.df[key].median())
+            elif value=='mode':
+                self.df[key]=self.df[key].fillna(self.df[key].mode()[0])
+            else:
+                self.df[key]=self.df[key].fillna(value)
         return self
 
     def remove_duplicates(self, subset: list = None) -> "DataCleaner":
@@ -266,6 +264,7 @@ if __name__ == "__main__":
     missing_customers=merged[merged['_merge']=='left_only']
     rowsm, colsm=missing_customers.shape
     print(f"Broj posiljki bez customer_id:{rowsm}")
+    merged.drop("_merge", axis='columns')
     merged.to_csv("merged_report.csv", index=False)
 
     total_revenue=merged.groupby('category')['revenue'].sum().sort_values(ascending=False)
