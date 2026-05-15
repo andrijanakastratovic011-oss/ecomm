@@ -63,7 +63,7 @@ class DataCleaner:
     def report(self) -> None:
         """Print a short summary: shape, null counts, dtypes."""
         self.df.info()
-        self.df.isnull().sum()
+        print(self.df.isnull().sum())
 
     def standardize_text_columns(self, columns: list) -> "DataCleaner":
         """
