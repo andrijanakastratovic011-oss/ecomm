@@ -56,13 +56,14 @@ class DataCleaner:
         Store the DataFrame and a human-readable name.
         Make a copy so the original is never modified.
         """
-        self.df = df
+        df_copy=df.copy()
+        self.df = df_copy
         self.name =name
 
     def report(self) -> None:
         """Print a short summary: shape, null counts, dtypes."""
         self.df.info()
-        self.df.isnull().sum()
+        print(self.df.isnull().sum())
 
     def standardize_text_columns(self, columns: list) -> "DataCleaner":
         """
@@ -121,8 +122,15 @@ class DataCleaner:
           any str  -> fill with that literal string / value
         Return self.
         """
-  
-        self.df.fillna(strategy) 
+        for key, value in strategy.items():
+            if value=='mean':
+                self.df[key]=self.df[key].fillna(self.df[key].mean())
+            elif value=='median':
+                self.df[key]=self.df[key].fillna(self.df[key].median())
+            elif value=='mode':
+                self.df[key]=self.df[key].fillna(self.df[key].mode()[0])
+            else:
+                self.df[key]=self.df[key].fillna(value)
         return self
 
     def remove_duplicates(self, subset: list = None) -> "DataCleaner":
@@ -132,7 +140,7 @@ class DataCleaner:
         Print how many duplicates were removed.
         Return self.
         """
-        self.df.drop_duplicates(inplace=True)
+        self.df.drop_duplicates(subset=subset, inplace=True)
         return self
 
     def add_revenue_column(self,
@@ -146,6 +154,7 @@ class DataCleaner:
         Round to 2 decimal places.
         Return self.
         """
+        self.df[discount_col]=self.df[discount_col].fillna(0)
         self.df=self.df.assign(revenue=lambda x: (x[price_col]*x[qty_col]*(1-x[discount_col]/100)))
         return self
 
@@ -153,18 +162,6 @@ class DataCleaner:
         """Return the cleaned DataFrame."""
         return self.df.copy()
 
-x=orders_df["unit_price"].median()
-strategy_o={
-            'unit_price': x,
-            'status': 'Unknown',
-            'country': 'Unknown'
-        }
-
-strategy_c={
-            'first_name': 'Unknown',
-            'last_name': 'Unknown',
-            'email': 'Unknown'
-        }
 
 # =============================================================
 # TASK 3 — Clean the orders dataset
@@ -185,17 +182,7 @@ strategy_c={
 # orders_clean   = ( orders_cleaner ... ).get()
 # orders_clean.to_csv("cleaned_orders.csv", index=False)
 
-orders_cleaner=DataCleaner(orders_df, "orders")
-orders_cleaner.report()
-orders_cleaner.standardize_text_columns(['status', 'category'])
-orders_cleaner.normalize_country('country')
-orders_cleaner.fix_dates('order_date')
-orders_cleaner.fill_nulls(strategy_o)
-orders_cleaner.remove_duplicates()
-orders_cleaner.add_revenue_column('unit_price', 'quantity', 'discount_pct')
-orders_cleaner.report()
-orders_clean=(orders_cleaner).get()
-orders_clean.to_csv("cleaned_orders.csv", index=False)
+
 
 # =============================================================
 # TASK 4 — Clean the customers dataset
@@ -208,17 +195,8 @@ orders_clean.to_csv("cleaned_orders.csv", index=False)
 # Save to cleaned_customers.csv (no index).
 
 # customers_cleaner = DataCleaner(customers_df, "customers")
-# ...
 
-customers_cleaner=DataCleaner(customers_df, "customers")
-customers_cleaner.report()
-customers_cleaner.standardize_text_columns(['segment'])
-customers_cleaner.fix_dates('join_date')
-customers_cleaner.fill_nulls(strategy_c)
-customers_cleaner.remove_duplicates()
-customers_cleaner.report()
-customers_clean=(customers_cleaner).get()
-customers_clean.to_csv("cleaned_customers.csv", index=False)
+
 
 # =============================================================
 # TASK 5 — Merge the two cleaned datasets
@@ -230,12 +208,6 @@ customers_clean.to_csv("cleaned_customers.csv", index=False)
 #   - How many orders have no matching customer (if any)
 # Save to merged_report.csv (no index).
 
-merged = orders_clean.merge(customers_clean, on='customer_id', how='left', indicator=True)
-rows, cols=merged.shape
-print(f"Broj redova:{rows}")
-missing_customers=merged['customer_id'].isnull().sum()
-print(f"Broj posiljki bez customer_id:{missing_customers}")
-merged.to_csv("merged_report.csv", index=False)
 
 # =============================================================
 # TASK 6 — Analyse & summarise  (BONUS)
@@ -256,29 +228,62 @@ merged.to_csv("merged_report.csv", index=False)
 #
 # Print each answer with a clear label.
 
-total_revenue=merged.groupby('category')['revenue'].sum().sort_values(ascending=False)
-print(f"Total revenue: {total_revenue}")
-
-most_orders=merged.groupby('country')['order_id'].count().sort_values(ascending=False)
-top_country=most_orders.index[0]
-print(f"Most orders: {top_country}")
-
-average_value=merged.groupby('segment')['quantity'].mean()
-print(f"Average value: {average_value}")
-
-merged_2023=merged[merged['order_date'].dt.year==2023]
-total_revenue_months_2023=merged_2023.groupby(merged_2023['order_date'].dt.month)['revenue'].sum().sort_values(ascending=False)
-month=total_revenue_months_2023.reset_index().head(1)[['order_date']]
-print(f"Month with highest total revenue {month}")
-
-total_revenue_customers=merged.groupby('customer_id')['revenue'].sum().sort_values(ascending=False)
-top5=total_revenue_customers.head(5)
-print(f"Top 5 customers: {top5}")
 
 # =============================================================
 # ENTRY POINT
 # =============================================================
 if __name__ == "__main__":
     print("Starting e-commerce pipeline...")
-    # Call your tasks here in order
+    strategy_o={
+            'unit_price': 'median',
+            'status': 'Unknown',
+            'country': 'Unknown'
+        }
+
+    strategy_c={
+            'lifetime_value': 'median',
+            'last_name': 'Unknown',
+            'email': 'Unknown'
+        }
+
+    orders_cleaner=DataCleaner(orders_df, "orders")
+    orders_cleaner.report()
+    orders_clean=(orders_cleaner.standardize_text_columns(['status', 'category']).normalize_country('country').fix_dates('order_date').fill_nulls(strategy_o).remove_duplicates().add_revenue_column('unit_price', 'quantity', 'discount_pct')).get()
+    orders_cleaner.report()
+    orders_clean.to_csv("cleaned_orders.csv", index=False)
+
+    customers_cleaner=DataCleaner(customers_df, "customers")
+    customers_cleaner.report()
+    customers_clean=(customers_cleaner.standardize_text_columns(['segment']).fix_dates('join_date').fill_nulls(strategy_c).remove_duplicates()).get()
+    customers_cleaner.report()
+    customers_clean.to_csv("cleaned_customers.csv", index=False)
+
+    merged = orders_clean.merge(customers_clean, on='customer_id', how='left', indicator=True)
+    rows, cols=merged.shape
+    print(f"Broj redova:{rows}")
+    missing_customers=merged[merged['_merge']=='left_only']
+    rowsm, colsm=missing_customers.shape
+    print(f"Broj posiljki bez customer_id:{rowsm}")
+    merged.drop("_merge", axis='columns')
+    merged.to_csv("merged_report.csv", index=False)
+
+    total_revenue=merged.groupby('category')['revenue'].sum().sort_values(ascending=False)
+    print(f"Total revenue: {total_revenue}")
+
+    most_orders=merged.groupby('country')['order_id'].count().sort_values(ascending=False)
+    top_country=most_orders.index[0]
+    print(f"Most orders: {top_country}")
+
+    average_value=merged.groupby('segment')['quantity'].mean()
+    print(f"Average value: {average_value}")
+
+    merged_2023=merged[merged['order_date'].dt.year==2023]
+    total_revenue_months_2023=merged_2023.groupby(merged_2023['order_date'].dt.month)['revenue'].sum().sort_values(ascending=False)
+    month=total_revenue_months_2023.reset_index().head(1)[['order_date']]
+    print(f"Month with highest total revenue {month}")
+
+    total_revenue_customers=merged.groupby('customer_id')['revenue'].sum().sort_values(ascending=False)
+    top5=total_revenue_customers.head(5)
+    print(f"Top 5 customers: {top5}")
+
     print("Pipeline complete.")
